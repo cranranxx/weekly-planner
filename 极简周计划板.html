@@ -1,0 +1,881 @@
+```html
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>极简周计划板</title>
+    <!-- Web App Manifest for PWA -->
+    <link rel="manifest" href="data:application/json;base64,ewogICJuYW1lIjogIuWeSrnmoY3lkajorqHliJIiLAogICJzaG9ydF9uYW1lIjogIuW6pOW8j+eUuSIsCiAgInN0YXJ0X3VybCI6ICIuIiwKICAidGhlbWVfY29sb3IiOiAiI0U3RDdCMSIsCiAgImJhY2tncm91bmRfY29sb3IiOiAiI0Y3RjNFRSIsCiAgImRpc3BsYXkiOiAic3RhbmRhbG9uZSIKfQ==">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="极简周计划">
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        cream: '#F7F3EE',
+                        primary: '#E7D7B1',
+                        darkText: '#333333',
+                        completed: '#BEBEBE',
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        body {
+            background-color: #F7F3EE;
+            color: #333333;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            -webkit-tap-highlight-color: transparent;
+            user-select: none;
+        }
+        /* 隐藏滚动条 */
+        .no-scrollbar::-webkit-scrollbar {
+            display: none;
+        }
+        .no-scrollbar {
+            -ms-overflow-style: none;
+            scrollbar-width: none;
+        }
+        /* 拖动反馈高亮样式 */
+        .drag-active-target {
+            background-color: rgba(231, 215, 177, 0.25) !important;
+            border: 2px dashed #E7D7B1 !important;
+        }
+        /* 防止手机长按呼出原生菜单 */
+        .no-select {
+            -webkit-touch-callout: none;
+            -webkit-user-select: none;
+            user-select: none;
+        }
+        .rotate-icon {
+            transition: transform 0.2s ease;
+        }
+        .collapsed .rotate-icon {
+            transform: rotate(-90deg);
+        }
+        /* iPhone Safari 拖拽跟手虚拟卡片 */
+        .ghost-element {
+            position: fixed;
+            pointer-events: none;
+            z-index: 9999;
+            background-color: #FFFFFF;
+            border: 1.5px solid #E7D7B1;
+            border-radius: 12px;
+            padding: 10px 16px;
+            box-shadow: 0 12px 30px rgba(0,0,0,0.08);
+            opacity: 0.95;
+            transform: scale(1.03);
+            font-size: 14px;
+            color: #333333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+    </style>
+
+<!-- 百度统计 -->
+<script>
+var _hmt = _hmt || [];
+(function() {
+  var hm = document.createElement("script");
+  hm.src = "https://hm.baidu.com/hm.js?272119dae6cce7e3ded69c4a57f828d1";
+  var s = document.getElementsByTagName("script")[0]; 
+  s.parentNode.insertBefore(hm, s);
+})();
+</script>
+
+<!-- Google tag (gtag.js) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-N13ZH72VV9"></script>
+<script>
+  window.dataLayer = window.dataLayer || [];
+  function gtag(){dataLayer.push(arguments);}
+  gtag('js', new Date());
+
+  gtag('config', 'G-N13ZH72VV9');
+</script>
+</head>
+<body class="h-screen flex flex-col no-select">
+
+    <!-- 顶部状态与周切换 -->
+    <header class="flex justify-between items-center px-4 py-3 md:px-8 border-b border-gray-200 bg-[#F7F3EE] sticky top-0 z-10 shrink-0">
+        <h1 class="text-lg md:text-xl font-medium tracking-wide">极简计划板</h1>
+        <div class="flex items-center space-x-2 md:space-x-3">
+            <button id="prevWeekBtn" class="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center rounded-full bg-[#E7D7B1] hover:opacity-90 active:scale-95 transition-transform text-lg">
+                ‹
+            </button>
+            <span id="currentWeekDisplay" class="text-xs md:text-sm font-semibold tracking-wider min-w-[120px] md:min-w-[140px] text-center">2026年06月第2周</span>
+            <button id="nextWeekBtn" class="w-7 h-7 md:w-8 md:h-8 flex items-center justify-center rounded-full bg-[#E7D7B1] hover:opacity-90 active:scale-95 transition-transform text-lg">
+                ›
+            </button>
+        </div>
+    </header>
+
+    <!-- 主布局：始终保持左右双栏布局 (即使在小屏手机上也平分展示) -->
+    <main class="flex-1 flex flex-row overflow-hidden w-full">
+        
+        <!-- 左侧栏：周计划板 -->
+        <section class="w-[58%] h-full p-3 md:p-6 overflow-y-auto border-r border-gray-200 flex flex-col space-y-3">
+            <div class="flex justify-between items-center shrink-0">
+                <div class="flex flex-col">
+                    <h2 class="text-xs md:text-sm tracking-widest text-gray-500 uppercase font-semibold">周计划板</h2>
+                    <span class="hidden sm:inline text-[10px] text-gray-400 mt-0.5">💡 长按任意任务跨日期拖拽</span>
+                </div>
+                <button id="clearCompletedBtn" class="text-[10px] md:text-xs px-2.5 py-1.5 rounded-lg bg-red-50/60 border border-red-100/50 text-red-500 hover:bg-red-100 active:scale-95 transition-transform">
+                    清空已完成
+                </button>
+            </div>
+
+            <div id="weekDaysContainer" class="space-y-3 pb-6">
+                <!-- 星期一至星期日动态生成 -->
+            </div>
+        </section>
+
+        <!-- 右侧栏：任务库 -->
+        <section class="w-[42%] h-full p-3 md:p-6 bg-[#F3ECE4] overflow-y-auto flex flex-col shrink-0">
+            <div class="flex justify-between items-center mb-3 shrink-0">
+                <div class="flex flex-col">
+                    <h2 class="text-xs md:text-sm tracking-widest text-gray-500 uppercase font-semibold">任务库</h2>
+                    <span class="hidden sm:inline text-[10px] text-gray-400 mt-0.5">💡 长按拖动至周计划</span>
+                </div>
+                <button id="addCategoryBtn" class="px-2 md:px-3 py-1 text-[10px] md:text-xs rounded-full bg-[#E7D7B1] text-darkText active:scale-95 transition-transform font-medium">
+                    + 分类
+                </button>
+            </div>
+
+            <div id="libraryContainer" class="space-y-3 flex-1 pb-6">
+                <!-- 分类和任务动态渲染 -->
+            </div>
+        </section>
+    </main>
+
+    <!-- 新建分类模态弹窗 -->
+    <div id="categoryModal" class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center hidden z-50">
+        <div class="bg-[#F7F3EE] p-6 rounded-2xl w-80 max-w-[90%] border border-gray-200 shadow-lg">
+            <h3 class="text-base font-medium mb-4">新建任务分类</h3>
+            <input id="categoryInput" type="text" placeholder="例如：📚 英语" class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-[#E7D7B1] text-sm mb-4">
+            <div class="flex justify-end space-x-3">
+                <button id="cancelCategoryBtn" class="px-4 py-2 text-sm text-gray-500">取消</button>
+                <button id="saveCategoryBtn" class="px-4 py-2 text-sm bg-[#E7D7B1] rounded-xl font-medium">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 新建任务模态弹窗 -->
+    <div id="taskModal" class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center hidden z-50">
+        <div class="bg-[#F7F3EE] p-6 rounded-2xl w-80 max-w-[90%] border border-gray-200 shadow-lg">
+            <h3 class="text-base font-medium mb-4">在「<span id="targetCategoryName"></span>」中新建任务</h3>
+            <input id="taskInput" type="text" placeholder="例如：背单词" class="w-full px-4 py-3 rounded-xl border border-gray-300 bg-white focus:outline-none focus:border-[#E7D7B1] text-sm mb-4">
+            <div class="flex justify-end space-x-3">
+                <button id="cancelTaskBtn" class="px-4 py-2 text-sm text-gray-500">取消</button>
+                <button id="saveTaskBtn" class="px-4 py-2 text-sm bg-[#E7D7B1] rounded-xl font-medium">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 二级清空确认弹窗 -->
+    <div id="doubleConfirmModal" class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center hidden z-50">
+        <div class="bg-[#F7F3EE] p-6 rounded-2xl w-80 max-w-[90%] border border-gray-200 shadow-lg text-center">
+            <h3 id="confirmTitle" class="text-base font-semibold text-gray-800 mb-2">清空确认</h3>
+            <p id="confirmDesc" class="text-sm text-gray-500 mb-6">确定要执行清空操作吗？</p>
+            <div class="flex justify-center space-x-3">
+                <button id="confirmCancelBtn" class="px-5 py-2.5 text-sm bg-gray-200 text-gray-600 rounded-xl font-medium">取消</button>
+                <button id="confirmNextBtn" class="px-5 py-2.5 text-sm bg-red-500 text-white rounded-xl font-medium">确定</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 核心北京时间日期算法 ---
+        
+        // 获得给定日期所在周的周一(北京时间)
+        function getMondayOfDate(d) {
+            const date = new Date(d);
+            const day = date.getDay();
+            const diff = date.getDate() - day + (day === 0 ? -6 : 1);
+            const monday = new Date(date.setDate(diff));
+            monday.setHours(0,0,0,0);
+            return monday;
+        }
+
+        // 计算周一属于当月的第几周 (一个月四周或五周)
+        function getWeekOfMonth(monday) {
+            const dayOfMonth = monday.getDate();
+            return Math.ceil(dayOfMonth / 7);
+        }
+
+        // 根据周一日期序列化本地存储的 WeekKey (格式 YYYY-MM-DD)
+        function getWeekKey(monday) {
+            const y = monday.getFullYear();
+            const m = String(monday.getMonth() + 1).padStart(2, '0');
+            const d = String(monday.getDate()).padStart(2, '0');
+            return `${y}-${m}-${d}`;
+        }
+
+        // 默认初始化今天所在周的周一
+        let currentMonday = getMondayOfDate(new Date());
+
+        // --- 全局数据模型 ---
+        let appState = {
+            categories: [
+                {
+                    id: "cat_1",
+                    title: "📚 英语",
+                    collapsed: false,
+                    tasks: [
+                        { id: "task_1", text: "背单词" },
+                        { id: "task_2", text: "阅读训练" },
+                        { id: "task_3", text: "听力训练" }
+                    ]
+                },
+                {
+                    id: "cat_2",
+                    title: "🏋️ 健身",
+                    collapsed: false,
+                    tasks: [
+                        { id: "task_4", text: "上肢训练" },
+                        { id: "task_5", text: "下肢训练" },
+                        { id: "task_6", text: "有氧" }
+                    ]
+                },
+                {
+                    id: "cat_3",
+                    title: "🏠 生活",
+                    collapsed: false,
+                    tasks: [
+                        { id: "task_7", text: "整理房间" },
+                        { id: "task_8", text: "洗床单" },
+                        { id: "task_9", text: "收纳" }
+                    ]
+                }
+            ],
+            weeklyPlans: {}
+        };
+
+        const DAYS_OF_WEEK = ["周一", "周二", "周三", "周四", "周五", "周六", "周日"];
+        
+        // 全局手势/鼠标拖放引擎状态
+        let dragEngine = {
+            active: false,
+            sourceType: null, // 'library' | 'day'
+            sourceDayIndex: null,
+            sourceTaskIndex: null,
+            taskText: null,
+            ghostEl: null,
+            timer: null
+        };
+
+        // --- 数据加载与写入 ---
+        function loadData() {
+            const saved = localStorage.getItem("极简计划板_日期重构版");
+            if (saved) {
+                try {
+                    appState = JSON.parse(saved);
+                } catch(e) {
+                    console.error("加载数据失败", e);
+                }
+            }
+        }
+
+        function saveData() {
+            localStorage.setItem("极简计划板_日期重构版", JSON.stringify(appState));
+        }
+
+        function initWeekPlanIfNeeded(key) {
+            if (!appState.weeklyPlans[key]) {
+                appState.weeklyPlans[key] = [[], [], [], [], [], [], []];
+            }
+        }
+
+        // --- iPhone Safari & 电脑端通用手势拖放引擎 ---
+        function bindDragTrigger(element, config) {
+            let startX = 0, startY = 0;
+
+            const handleTouchStart = (e) => {
+                const touch = e.touches[0];
+                startX = touch.clientX;
+                startY = touch.clientY;
+
+                dragEngine.timer = setTimeout(() => {
+                    triggerDragStart(touch, config);
+                }, 300); // 300ms 触发拖动
+            };
+
+            const handleTouchMove = (e) => {
+                const touch = e.touches[0];
+                if (!dragEngine.active) {
+                    if (Math.abs(touch.clientX - startX) > 8 || Math.abs(touch.clientY - startY) > 8) {
+                        clearTimeout(dragEngine.timer);
+                    }
+                    return;
+                }
+                if (dragEngine.ghostEl) {
+                    positionGhost(touch);
+                    highlightDropZone(touch.clientX, touch.clientY);
+                }
+            };
+
+            const handleTouchEnd = (e) => {
+                clearTimeout(dragEngine.timer);
+                if (dragEngine.active) {
+                    const touch = e.changedTouches[0];
+                    triggerDragDrop(touch);
+                }
+            };
+
+            element.addEventListener('touchstart', handleTouchStart, { passive: true });
+            element.addEventListener('touchmove', handleTouchMove, { passive: false });
+            element.addEventListener('touchend', handleTouchEnd);
+
+            // 电脑端兼容
+            const handleMouseDown = (e) => {
+                startX = e.clientX;
+                startY = e.clientY;
+                dragEngine.timer = setTimeout(() => {
+                    triggerDragStart(e, config);
+                }, 300);
+
+                const handleMouseMove = (moveEv) => {
+                    if (!dragEngine.active) {
+                        if (Math.abs(moveEv.clientX - startX) > 8 || Math.abs(moveEv.clientY - startY) > 8) {
+                            clearTimeout(dragEngine.timer);
+                        }
+                        return;
+                    }
+                    positionGhost(moveEv);
+                    highlightDropZone(moveEv.clientX, moveEv.clientY);
+                };
+
+                const handleMouseUp = (upEv) => {
+                    clearTimeout(dragEngine.timer);
+                    if (dragEngine.active) {
+                        triggerDragDrop(upEv);
+                    }
+                    window.removeEventListener('mousemove', handleMouseMove);
+                    window.removeEventListener('mouseup', handleMouseUp);
+                };
+
+                window.addEventListener('mousemove', handleMouseMove);
+                window.addEventListener('mouseup', handleMouseUp);
+            };
+
+            element.addEventListener('mousedown', handleMouseDown);
+        }
+
+        function triggerDragStart(pointer, config) {
+            dragEngine.active = true;
+            dragEngine.sourceType = config.sourceType;
+            dragEngine.sourceDayIndex = config.dayIndex;
+            dragEngine.sourceTaskIndex = config.taskIndex;
+            dragEngine.taskText = config.text;
+
+            if (navigator.vibrate) {
+                navigator.vibrate(35);
+            }
+
+            const ghost = document.createElement('div');
+            ghost.className = 'ghost-element';
+            ghost.innerHTML = `<span class="text-gray-400">≡</span> <span class="font-medium text-xs md:text-sm">${config.text}</span>`;
+            document.body.appendChild(ghost);
+            dragEngine.ghostEl = ghost;
+
+            positionGhost(pointer);
+
+            document.querySelectorAll('[data-day-index]').forEach(zone => {
+                zone.style.borderColor = '#E7D7B1';
+            });
+        }
+
+        function positionGhost(pointer) {
+            if (dragEngine.ghostEl) {
+                dragEngine.ghostEl.style.left = (pointer.clientX - dragEngine.ghostEl.offsetWidth / 2) + 'px';
+                dragEngine.ghostEl.style.top = (pointer.clientY - dragEngine.ghostEl.offsetHeight / 2 - 25) + 'px';
+            }
+        }
+
+        function highlightDropZone(clientX, clientY) {
+            if (dragEngine.ghostEl) {
+                dragEngine.ghostEl.style.pointerEvents = 'none';
+                const hitElement = document.elementFromPoint(clientX, clientY);
+                const zone = hitElement ? hitElement.closest('[data-day-index]') : null;
+
+                document.querySelectorAll('[data-day-index]').forEach(card => {
+                    card.classList.remove('drag-active-target');
+                });
+
+                if (zone) {
+                    zone.classList.add('drag-active-target');
+                }
+            }
+        }
+
+        function triggerDragDrop(pointer) {
+            if (dragEngine.ghostEl) {
+                dragEngine.ghostEl.style.pointerEvents = 'none';
+                const hitElement = document.elementFromPoint(pointer.clientX, pointer.clientY);
+                const zone = hitElement ? hitElement.closest('[data-day-index]') : null;
+
+                if (zone) {
+                    const targetDayIndex = parseInt(zone.dataset.dayIndex);
+                    handleDroppedTask(targetDayIndex);
+                }
+
+                document.querySelectorAll('[data-day-index]').forEach(card => {
+                    card.classList.remove('drag-active-target');
+                    card.style.borderColor = '';
+                });
+
+                if (dragEngine.ghostEl.parentNode) {
+                    dragEngine.ghostEl.parentNode.removeChild(dragEngine.ghostEl);
+                }
+                dragEngine.ghostEl = null;
+            }
+            dragEngine.active = false;
+        }
+
+        function handleDroppedTask(targetDayIndex) {
+            const key = getWeekKey(currentMonday);
+
+            if (dragEngine.sourceType === 'library') {
+                // 从任务库拖入周计划：复制
+                appState.weeklyPlans[key][targetDayIndex].push({
+                    id: "plan_" + Date.now() + Math.random().toString(36).substr(2, 4),
+                    text: dragEngine.taskText,
+                    completed: false
+                });
+            } else if (dragEngine.sourceType === 'day') {
+                // 从周计划某个日期拖入另一个日期：移动
+                if (dragEngine.sourceDayIndex !== targetDayIndex) {
+                    const sourceList = appState.weeklyPlans[key][dragEngine.sourceDayIndex];
+                    const movingItem = sourceList[dragEngine.sourceTaskIndex];
+                    
+                    if (movingItem) {
+                        appState.weeklyPlans[key][targetDayIndex].push(movingItem);
+                        sourceList.splice(dragEngine.sourceTaskIndex, 1);
+                    }
+                }
+            }
+
+            saveData();
+            renderWeeklyPlan();
+        }
+
+        // --- 页面各模块渲染 ---
+
+        // 渲染顶部自然周状态
+        function renderWeekHeader() {
+            const year = currentMonday.getFullYear();
+            const month = String(currentMonday.getMonth() + 1).padStart(2, '0');
+            const weekNum = getWeekOfMonth(currentMonday);
+            document.getElementById("currentWeekDisplay").innerText = `${year}年${month}月第${weekNum}周`;
+        }
+
+        // 渲染周计划板 (整合已完成的任务，使其保留在当天清单内)
+        function renderWeeklyPlan() {
+            const container = document.getElementById("weekDaysContainer");
+            container.innerHTML = "";
+            const key = getWeekKey(currentMonday);
+            initWeekPlanIfNeeded(key);
+            const currentWeekData = appState.weeklyPlans[key];
+
+            currentWeekData.forEach((tasks, dayIndex) => {
+                const dayCard = document.createElement("div");
+                dayCard.className = "bg-white/80 backdrop-blur-xs rounded-xl p-2.5 md:p-4 border border-gray-100 transition-colors duration-200 min-h-[85px] flex flex-col justify-start relative";
+                dayCard.dataset.dayIndex = dayIndex;
+
+                // 确定当天具体公历日期
+                const thisDayDate = new Date(currentMonday);
+                thisDayDate.setDate(currentMonday.getDate() + dayIndex);
+                const formattedDateStr = `${thisDayDate.getMonth() + 1}/${thisDayDate.getDate()}`;
+
+                // 头部
+                const header = document.createElement("div");
+                header.className = "flex justify-between items-center mb-2 shrink-0 border-b border-gray-100 pb-1 pointer-events-none";
+                
+                const title = document.createElement("span");
+                title.className = "text-[11px] md:text-sm font-semibold text-gray-700";
+                title.innerText = `${DAYS_OF_WEEK[dayIndex]} (${formattedDateStr})`;
+                header.appendChild(title);
+
+                const count = document.createElement("span");
+                count.className = "text-[10px] text-gray-400";
+                count.innerText = tasks.length > 0 ? `${tasks.length}项` : "";
+                header.appendChild(count);
+
+                dayCard.appendChild(header);
+
+                // 任务卡片容器
+                const taskList = document.createElement("div");
+                taskList.className = "space-y-1 flex-1 flex flex-col";
+
+                if (tasks.length === 0) {
+                    const placeholder = document.createElement("div");
+                    placeholder.className = "text-[10px] md:text-xs text-gray-300 italic py-1.5 flex-1 flex items-center justify-center pointer-events-none";
+                    placeholder.innerText = "暂无计划...";
+                    taskList.appendChild(placeholder);
+                } else {
+                    tasks.forEach((task, taskIndex) => {
+                        const taskEl = document.createElement("div");
+                        taskEl.className = "flex justify-between items-center group py-1.5 px-2 rounded-lg bg-[#F7F3EE]/40 hover:bg-[#F7F3EE] active:bg-[#E7D7B1]/20 transition-all cursor-pointer text-xs md:text-sm gap-1.5 select-none touch-none";
+                        
+                        // 长按事件绑定用于跨日期拖拽
+                        bindDragTrigger(taskEl, {
+                            sourceType: 'day',
+                            dayIndex: dayIndex,
+                            taskIndex: taskIndex,
+                            text: task.text
+                        });
+
+                        // 点击切换完成态 (继续保留在当天内)
+                        taskEl.addEventListener('click', (e) => {
+                            if (e.target.closest(".delete-btn") || dragEngine.active) return;
+                            toggleTaskComplete(dayIndex, taskIndex);
+                        });
+
+                        const leftSide = document.createElement("div");
+                        leftSide.className = "flex items-center space-x-1 flex-1 min-w-0 pointer-events-none";
+
+                        const checkbox = document.createElement("span");
+                        checkbox.className = `text-sm md:text-base select-none shrink-0 ${task.completed ? 'text-completed' : 'text-gray-400'}`;
+                        checkbox.innerText = task.completed ? "☑" : "□";
+
+                        const text = document.createElement("span");
+                        text.className = `truncate font-medium ${task.completed ? 'line-through text-completed' : 'text-darkText'}`;
+                        text.innerText = task.text;
+
+                        leftSide.appendChild(checkbox);
+                        leftSide.appendChild(text);
+
+                        // 快速删除
+                        const deleteBtn = document.createElement("button");
+                        deleteBtn.className = "delete-btn text-gray-300 hover:text-red-400 text-[10px] md:text-xs p-1 rounded-md shrink-0 active:scale-90 transition-transform md:opacity-0 md:group-hover:opacity-100";
+                        deleteBtn.innerHTML = `✕`;
+                        deleteBtn.addEventListener("click", (e) => {
+                            e.stopPropagation();
+                            deleteTaskFromDay(dayIndex, taskIndex);
+                        });
+
+                        taskEl.appendChild(leftSide);
+                        taskEl.appendChild(deleteBtn);
+                        taskList.appendChild(taskEl);
+                    });
+                }
+
+                dayCard.appendChild(taskList);
+                container.appendChild(dayCard);
+            });
+        }
+
+        // 渲染右侧任务库
+        function renderLibrary() {
+            const container = document.getElementById("libraryContainer");
+            container.innerHTML = "";
+
+            appState.categories.forEach((category) => {
+                const catContainer = document.createElement("div");
+                catContainer.className = `bg-white/45 p-2 md:p-3 rounded-xl border border-gray-100 transition-all ${category.collapsed ? 'collapsed' : ''}`;
+
+                const titleBar = document.createElement("div");
+                titleBar.className = "flex justify-between items-center cursor-pointer";
+                
+                const leftPart = document.createElement("div");
+                leftPart.className = "flex items-center space-x-1 flex-1 min-w-0";
+                leftPart.addEventListener("click", () => {
+                    toggleCategoryCollapse(category.id);
+                });
+
+                const arrow = document.createElement("span");
+                arrow.className = "rotate-icon text-[9px] text-gray-400 select-none";
+                arrow.innerHTML = "▼";
+                
+                const title = document.createElement("h3");
+                title.className = "text-xs md:text-sm font-semibold text-gray-700 py-1 truncate";
+                title.innerText = category.title;
+
+                leftPart.appendChild(arrow);
+                leftPart.appendChild(title);
+
+                const actionWrapper = document.createElement("div");
+                actionWrapper.className = "flex space-x-1 md:space-x-1.5 items-center opacity-75 hover:opacity-100 transition-opacity shrink-0";
+
+                const addTaskBtn = document.createElement("button");
+                addTaskBtn.className = "text-[9px] md:text-[10px] px-1.5 py-0.5 rounded bg-[#E7D7B1] text-darkText font-medium hover:opacity-90";
+                addTaskBtn.innerText = "+ 任务";
+                addTaskBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    openAddTaskModal(category.id, category.title);
+                });
+
+                const deleteCatBtn = document.createElement("button");
+                deleteCatBtn.className = "text-[11px] text-gray-400 hover:text-red-400 p-0.5";
+                deleteCatBtn.innerHTML = "🗑";
+                deleteCatBtn.addEventListener("click", (e) => {
+                    e.stopPropagation();
+                    if (confirm(`确定要删除分类「${category.title}」吗？`)) {
+                        deleteCategory(category.id);
+                    }
+                });
+
+                actionWrapper.appendChild(addTaskBtn);
+                actionWrapper.appendChild(deleteCatBtn);
+
+                titleBar.appendChild(leftPart);
+                titleBar.appendChild(actionWrapper);
+                catContainer.appendChild(titleBar);
+
+                const list = document.createElement("div");
+                list.className = "grid grid-cols-1 gap-1.5 mt-1.5 transition-all duration-300 overflow-hidden";
+                
+                if (category.collapsed) {
+                    list.style.display = "none";
+                } else {
+                    list.style.display = "grid";
+                }
+
+                category.tasks.forEach((task, taskIndex) => {
+                    const taskCard = document.createElement("div");
+                    taskCard.className = "bg-white border border-gray-100 rounded-lg p-2 flex justify-between items-center active:scale-[0.99] transition-all gap-1 text-xs md:text-sm select-none relative group touch-none";
+                    
+                    // 为分类任务绑定长按拖拽
+                    bindDragTrigger(taskCard, {
+                        sourceType: 'library',
+                        dayIndex: null,
+                        taskIndex: taskIndex,
+                        text: task.text
+                    });
+
+                    const label = document.createElement("div");
+                    label.className = "truncate text-darkText flex-1 font-medium";
+                    label.innerText = task.text;
+
+                    const deleteBtn = document.createElement("button");
+                    deleteBtn.className = "text-gray-300 hover:text-red-400 text-[10px] md:text-xs px-1.5 py-1 rounded-sm active:scale-90 transition-transform shrink-0 md:opacity-0 md:group-hover:opacity-100";
+                    deleteBtn.innerHTML = "✕";
+                    deleteBtn.addEventListener("click", (e) => {
+                        e.stopPropagation();
+                        deleteLibraryTask(category.id, task.id);
+                    });
+
+                    taskCard.appendChild(label);
+                    taskCard.appendChild(deleteBtn);
+                    list.appendChild(taskCard);
+                });
+
+                if (category.tasks.length === 0) {
+                    const emptyTip = document.createElement("p");
+                    emptyTip.className = "text-[10px] text-gray-400 italic text-center py-1.5";
+                    emptyTip.innerText = "暂无任务";
+                    list.appendChild(emptyTip);
+                }
+
+                catContainer.appendChild(list);
+                container.appendChild(catContainer);
+            });
+        }
+
+        // --- 核心流转与编辑函数 ---
+
+        // 切换任务完成状态 (原地保留)
+        function toggleTaskComplete(dayIndex, taskIndex) {
+            const key = getWeekKey(currentMonday);
+            const task = appState.weeklyPlans[key][dayIndex][taskIndex];
+            if (task) {
+                task.completed = !task.completed;
+                saveData();
+                renderWeeklyPlan();
+            }
+        }
+
+        // 删除当天清单内单条任务
+        function deleteTaskFromDay(dayIndex, taskIndex) {
+            const key = getWeekKey(currentMonday);
+            appState.weeklyPlans[key][dayIndex].splice(taskIndex, 1);
+            saveData();
+            renderWeeklyPlan();
+        }
+
+        // 清空本周所有的已完成任务 (附带防误触模态二级确认)
+        function clearAllCompletedThisWeek() {
+            const key = getWeekKey(currentMonday);
+            if (appState.weeklyPlans[key]) {
+                appState.weeklyPlans[key].forEach((dayList, dayIdx) => {
+                    appState.weeklyPlans[key][dayIdx] = dayList.filter(task => !task.completed);
+                });
+                saveData();
+                renderWeeklyPlan();
+            }
+        }
+
+        function triggerDoubleConfirm(title, desc, onConfirm) {
+            const modal = document.getElementById("doubleConfirmModal");
+            const titleEl = document.getElementById("confirmTitle");
+            const descEl = document.getElementById("confirmDesc");
+            const nextBtn = document.getElementById("confirmNextBtn");
+            const cancelBtn = document.getElementById("confirmCancelBtn");
+
+            titleEl.innerText = title;
+            descEl.innerText = desc;
+            modal.classList.remove("hidden");
+
+            let currentStep = 1;
+
+            const handleNext = () => {
+                if (currentStep === 1) {
+                    currentStep = 2;
+                    titleEl.innerText = "确认清空本周？";
+                    descEl.innerText = "此操作会永久抹掉这七天内所有标记为已完成的任务，不可撤销！";
+                    nextBtn.innerText = "确认清空";
+                    nextBtn.className = "px-5 py-2.5 text-sm bg-red-600 text-white rounded-xl font-medium";
+                } else if (currentStep === 2) {
+                    onConfirm();
+                    closeModal();
+                }
+            };
+
+            const closeModal = () => {
+                modal.classList.add("hidden");
+                nextBtn.removeEventListener('click', handleNext);
+                cancelBtn.removeEventListener('click', closeModal);
+                nextBtn.className = "px-5 py-2.5 text-sm bg-red-500 text-white rounded-xl font-medium";
+                nextBtn.innerText = "确定";
+            };
+
+            nextBtn.addEventListener('click', handleNext);
+            cancelBtn.addEventListener('click', closeModal);
+        }
+
+        // 分类折叠
+        function toggleCategoryCollapse(catId) {
+            const category = appState.categories.find(c => c.id === catId);
+            if (category) {
+                category.collapsed = !category.collapsed;
+                saveData();
+                renderLibrary();
+            }
+        }
+
+        // 删除分类
+        function deleteCategory(catId) {
+            appState.categories = appState.categories.filter(c => c.id !== catId);
+            saveData();
+            renderLibrary();
+        }
+
+        // 删除任务库任务
+        function deleteLibraryTask(catId, taskId) {
+            const category = appState.categories.find(c => c.id === catId);
+            if (category) {
+                category.tasks = category.tasks.filter(t => t.id !== taskId);
+                saveData();
+                renderLibrary();
+            }
+        }
+
+        // --- 模态弹窗控制 ---
+        const catModal = document.getElementById("categoryModal");
+        const catInput = document.getElementById("categoryInput");
+        const taskModal = document.getElementById("taskModal");
+        const taskInput = document.getElementById("taskInput");
+        const targetCatNameSpan = document.getElementById("targetCategoryName");
+        let selectedCategoryId = "";
+
+        // 新建分类
+        document.getElementById("addCategoryBtn").addEventListener("click", () => {
+            catInput.value = "";
+            catModal.classList.remove("hidden");
+            catInput.focus();
+        });
+
+        document.getElementById("cancelCategoryBtn").addEventListener("click", () => {
+            catModal.classList.add("hidden");
+        });
+
+        document.getElementById("saveCategoryBtn").addEventListener("click", () => {
+            const value = catInput.value.trim();
+            if (value) {
+                appState.categories.push({
+                    id: "cat_" + Date.now(),
+                    title: value,
+                    collapsed: false,
+                    tasks: []
+                });
+                saveData();
+                renderLibrary();
+                catModal.classList.add("hidden");
+            }
+        });
+
+        // 新增任务库任务
+        function openAddTaskModal(catId, catTitle) {
+            selectedCategoryId = catId;
+            targetCatNameSpan.innerText = catTitle;
+            taskInput.value = "";
+            taskModal.classList.remove("hidden");
+            taskInput.focus();
+        }
+
+        document.getElementById("cancelTaskBtn").addEventListener("click", () => {
+            taskModal.classList.add("hidden");
+        });
+
+        document.getElementById("saveTaskBtn").addEventListener("click", () => {
+            const value = taskInput.value.trim();
+            if (value && selectedCategoryId) {
+                const category = appState.categories.find(c => c.id === selectedCategoryId);
+                if (category) {
+                    category.tasks.push({
+                        id: "task_" + Date.now(),
+                        text: value
+                    });
+                    saveData();
+                    renderLibrary();
+                }
+                taskModal.classList.add("hidden");
+            }
+        });
+
+        // 一键清空触发
+        document.getElementById("clearCompletedBtn").addEventListener("click", () => {
+            triggerDoubleConfirm("要清空吗？", "确定要清空本周所有卡片内标记为已完成的任务吗？", clearAllCompletedThisWeek);
+        });
+
+        // --- 自然周翻页控制 ---
+        document.getElementById("prevWeekBtn").addEventListener("click", () => {
+            currentMonday.setDate(currentMonday.getDate() - 7);
+            const key = getWeekKey(currentMonday);
+            initWeekPlanIfNeeded(key);
+            saveData();
+            renderAll();
+        });
+
+        document.getElementById("nextWeekBtn").addEventListener("click", () => {
+            currentMonday.setDate(currentMonday.getDate() + 7);
+            const key = getWeekKey(currentMonday);
+            initWeekPlanIfNeeded(key);
+            saveData();
+            renderAll();
+        });
+
+        function renderAll() {
+            renderWeekHeader();
+            renderWeeklyPlan();
+            renderLibrary();
+        }
+
+        // --- 自启动入口 ---
+        window.onload = function() {
+            loadData();
+            const key = getWeekKey(currentMonday);
+            initWeekPlanIfNeeded(key);
+            renderAll();
+        };
+    </script>
+</body>
+</html>
+
+```
